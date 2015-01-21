@@ -1,15 +1,22 @@
 /*$AMPERSAND_VERSION*/
 var View = require('ampersand-view');
+var toArray = require('amp-to-array');
+var domify = require('domify');
 
+var templateNodeHTML = {
+    label: '<span data-hook="label"></span>',
+    input: '<input class="form-input">',
+    message: [
+        '<div data-hook="message-container" class="message message-below message-error">',
+            '<p data-hook="message-text"></p>',
+         '</div>'
+    ].join('')
+};
 
 module.exports = View.extend({
     template: [
         '<label>',
-            '<span data-hook="label"></span>',
-            '<input class="form-input">',
-            '<div data-hook="message-container" class="message message-below message-error">',
-                '<p data-hook="message-text"></p>',
-            '</div>',
+            toArray(templateNodeHTML).join(''),
         '</label>'
     ].join(''),
     bindings: {
@@ -61,12 +68,17 @@ module.exports = View.extend({
         this.on('change:valid change:value', this.reportToParent, this);
         if (spec.template) this.template = spec.template;
         if (spec.el) {
+            this.msgEl = spec.msgEl;
             this.el = spec.el;
+            delete spec.el; // prevent view.set from overriding mutated el
             this.render();
         }
     },
     render: function () {
-        if (this.el) this.input = this.el;
+        if (this.el) {
+            this.input = this.el;
+            this.renderMsgEl();
+        }
         this.el || this.renderWithTemplate();
         this.input = this.input || this.query('input') || this.query('textarea');
         // switches out input for textarea if that's what we want
@@ -204,6 +216,20 @@ module.exports = View.extend({
         this.input.removeEventListener('input', this.handleInputChanged, false);
         this.input.removeEventListener('blur', this.handleBlur, false);
         View.prototype.remove.apply(this, arguments);
+    },
+    renderMsgEl: function () {
+        var parent, newDom;
+        if (!this.msgEl) {
+            return;
+        }
+        // to enable bindings, all query-able nodes must be nested
+        // under this.el. Wrap msg and input in new div
+        parent = this.el && this.el.parentNode;
+        newDom = document.createElement('div');
+        parent.replaceChild(newDom, this.el);
+        newDom.appendChild(this.el);
+        newDom.appendChild(domify(templateNodeHTML.message));
+        this.el = newDom;
     },
     reset: function () {
         this.setValue(this.startingValue);
